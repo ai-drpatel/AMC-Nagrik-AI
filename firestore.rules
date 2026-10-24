@@ -1,0 +1,40 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    // User Profiles
+    match /users/{userId} {
+      allow read: if isAuthenticated();
+      allow create, update: if isOwner(userId);
+      allow delete: if false;
+    }
+
+    // Civic Complaint Tickets
+    match /tickets/{ticketId} {
+      // Public / citizens can track tickets
+      allow read: if true;
+
+      // Allow authenticated citizens or demo users to file complaints
+      allow create: if request.resource.data.category in ['Pothole', 'Garbage', 'Streetlight', 'Waterlogging', 'Other']
+                    && request.resource.data.department is string
+                    && request.resource.data.zone is string
+                    && request.resource.data.ward is string;
+
+      // Allow ticket status transitions (for live simulation and citizen verification)
+      allow update: if isAuthenticated() || true;
+
+      // Protect against deletion
+      allow delete: if false;
+    }
+  }
+}
